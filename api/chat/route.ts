@@ -1,16 +1,24 @@
-export const runtime = "edge";
-
 export async function POST(req: Request) {
   const { messages } = await req.json();
+
+  const text = (msg: string) =>
+    new Response(msg, {
+      status: 200,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+
+  if (!process.env.GROQ_API_KEY) {
+    return text("Setup error: GROQ_API_KEY is missing in Vercel. Add it under Settings → Environment Variables, then redeploy.");
+  }
 
   const upstream = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      Authorization: `Bearer ${process.env.GROQ_API_KEY.trim()}`,
     },
     body: JSON.stringify({
-      model: process.env.GROQ_MODEL ?? "llama-3.1-8b-instant",
+      model: (process.env.GROQ_MODEL ?? "llama-3.1-8b-instant").trim(),
       messages: [
         { role: "system", content: "You are Faith AI, a helpful, concise and friendly assistant." },
         ...messages,
@@ -21,7 +29,8 @@ export async function POST(req: Request) {
   });
 
   if (!upstream.ok || !upstream.body) {
-    return new Response("Upstream error", { status: 502 });
+    const detail = await upstream.text().catch(() => "");
+    return text(`Groq error ${upstream.status}: ${detail.slice(0, 300)}`);
   }
 
   const encoder = new TextEncoder();

@@ -2,24 +2,43 @@
 import { useEffect, useRef, useState } from "react";
 
 type Msg = { role: "user" | "assistant"; content: string };
+type Attached = { name: string; text: string };
 
 export default function Home() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [file, setFile] = useState<Attached | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 100_000) {
+      alert("File too big. Please use a text file under 100 KB.");
+    } else {
+      setFile({ name: f.name, text: await f.text() });
+    }
+    e.target.value = "";
+  }
+
   async function send() {
     const text = input.trim();
-    if (!text || loading) return;
+    if ((!text && !file) || loading) return;
 
-    const history: Msg[] = [...messages, { role: "user", content: text }];
+    const content = file
+      ? `${text}\n\n[Attached file: ${file.name}]\n${file.text}`
+      : text;
+
+    const history: Msg[] = [...messages, { role: "user", content }];
     setMessages([...history, { role: "assistant", content: "" }]);
     setInput("");
+    setFile(null);
     setLoading(true);
 
     try {
@@ -63,7 +82,24 @@ export default function Home() {
         <div ref={bottomRef} />
       </section>
 
+      {file && (
+        <div className="chip">
+          📎 {file.name}
+          <button onClick={() => setFile(null)}>✕</button>
+        </div>
+      )}
+
       <footer>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".txt,.md,.csv,.json,.js,.ts,.tsx,.py,.html,.css"
+          onChange={pickFile}
+          hidden
+        />
+        <button className="plus" onClick={() => fileRef.current?.click()} title="Attach a text file">
+          +
+        </button>
         <textarea
           value={input}
           placeholder="Type a message…"
